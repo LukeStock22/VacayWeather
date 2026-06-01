@@ -625,6 +625,18 @@ function App() {
     let ignore = false
     const controller = new AbortController()
 
+    function mergeLocationForecast(locationId, partialForecast) {
+      startTransition(() => {
+        setForecastsByLocation((current) => ({
+          ...current,
+          [locationId]: {
+            ...current[locationId],
+            ...partialForecast,
+          },
+        }))
+      })
+    }
+
     const loadForecasts = async () => {
       setFetchState(hasLoadedOnceRef.current ? 'refreshing' : 'loading')
       setErrorMessage('')
@@ -638,7 +650,19 @@ function App() {
       await Promise.all(
         TRIP_LOCATIONS.map(async (location) => {
           try {
-            const forecast = await fetchLocationForecast(location, controller.signal)
+            const forecast = await fetchLocationForecast(
+              location,
+              controller.signal,
+              (partialForecast) => {
+                if (ignore) {
+                  return
+                }
+
+                latestSuccessAt = new Date()
+                hasLoadedOnceRef.current = true
+                mergeLocationForecast(location.locationId, partialForecast)
+              },
+            )
 
             if (ignore) {
               return
@@ -648,30 +672,23 @@ function App() {
             latestSuccessAt = new Date()
             hasLoadedOnceRef.current = true
 
-            startTransition(() => {
-              setForecastsByLocation((current) => ({
-                ...current,
-                [location.locationId]: forecast,
-              }))
-            })
+            mergeLocationForecast(location.locationId, forecast)
           } catch (error) {
             if (!ignore && error.name !== 'AbortError') {
               failedCount += 1
             }
           } finally {
-            if (ignore) {
-              return
-            }
+            if (!ignore) {
+              completedCount += 1
 
-            completedCount += 1
-
-            startTransition(() => {
-              setLoadProgress({
-                completed: completedCount,
-                failed: failedCount,
-                succeeded: successfulCount,
+              startTransition(() => {
+                setLoadProgress({
+                  completed: completedCount,
+                  failed: failedCount,
+                  succeeded: successfulCount,
+                })
               })
-            })
+            }
           }
         }),
       )

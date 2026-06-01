@@ -87,6 +87,14 @@ async function fetchJson(url, signal, errorLabel) {
   return response.json()
 }
 
+function notifyPartialForecast(onPartialForecast, partialForecast) {
+  if (!onPartialForecast) {
+    return
+  }
+
+  onPartialForecast(partialForecast)
+}
+
 function normalizePrecipitationProbability(probability) {
   if (Number.isFinite(probability)) {
     return Math.round(probability)
@@ -122,7 +130,7 @@ function getPayloadForecast(payload, dateString, source) {
   }
 }
 
-export async function fetchLocationForecast(location, signal) {
+export async function fetchLocationForecast(location, signal, onPartialForecast) {
   const shortRangeQuery = buildQuery(location, {
     daily: SHORT_RANGE_FIELDS,
     hourly: HOURLY_FIELDS,
@@ -137,12 +145,18 @@ export async function fetchLocationForecast(location, signal) {
       `https://api.open-meteo.com/v1/forecast?${shortRangeQuery}`,
       signal,
       `${location.name} short-range forecast`,
-    ),
+    ).then((shortRange) => {
+      notifyPartialForecast(onPartialForecast, { shortRange })
+      return shortRange
+    }),
     fetchJson(
       `https://seasonal-api.open-meteo.com/v1/forecast?${extendedQuery}`,
       signal,
       `${location.name} extended forecast`,
-    ),
+    ).then((extendedRange) => {
+      notifyPartialForecast(onPartialForecast, { extendedRange })
+      return extendedRange
+    }),
   ])
 
   const shortRange =
