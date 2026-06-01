@@ -23,6 +23,8 @@ const EXTENDED_FIELDS = [
   'wind_speed_10m_max',
 ]
 
+const FETCH_RETRY_DELAYS_MS = [500, 1500, 3000]
+
 const WEATHER_LABELS = {
   0: 'Clear skies',
   1: 'Mostly clear',
@@ -87,6 +89,46 @@ async function fetchJson(url, signal, errorLabel) {
   return response.json()
 }
 
+function wait(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(resolve, ms)
+
+    signal.addEventListener(
+      'abort',
+      () => {
+        window.clearTimeout(timeoutId)
+        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true },
+    )
+  })
+}
+
+async function fetchJsonWithRetry(url, signal, errorLabel) {
+  let lastError = null
+
+  for (let attempt = 0; attempt <= FETCH_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await fetchJson(url, signal, errorLabel)
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw error
+      }
+
+      lastError = error
+      const retryDelay = FETCH_RETRY_DELAYS_MS[attempt]
+
+      if (retryDelay == null) {
+        break
+      }
+
+      await wait(retryDelay, signal)
+    }
+  }
+
+  throw lastError ?? new Error(`${errorLabel} request failed`)
+}
+
 function notifyPartialForecast(onPartialForecast, partialForecast) {
   if (!onPartialForecast) {
     return
@@ -117,15 +159,29 @@ function getPayloadForecast(payload, dateString, source) {
   const precipitationProbability = normalizePrecipitationProbability(
     payload.daily.precipitation_probability_max?.[dayIndex],
   )
+  const weatherCode = payload.daily.weather_code?.[dayIndex]
+  const high = payload.daily.temperature_2m_max?.[dayIndex]
+  const low = payload.daily.temperature_2m_min?.[dayIndex]
+  const windSpeed = payload.daily.wind_speed_10m_max?.[dayIndex]
+
+  if (
+    !Number.isFinite(weatherCode) ||
+    !Number.isFinite(high) ||
+    !Number.isFinite(low) ||
+    !Number.isFinite(precipitationTotal) ||
+    !Number.isFinite(windSpeed)
+  ) {
+    return null
+  }
 
   return {
     source,
-    weatherCode: payload.daily.weather_code[dayIndex],
-    high: payload.daily.temperature_2m_max[dayIndex],
-    low: payload.daily.temperature_2m_min[dayIndex],
+    weatherCode,
+    high,
+    low,
     precipitationProbability,
     precipitationTotal,
-    windSpeed: payload.daily.wind_speed_10m_max[dayIndex],
+    windSpeed,
     uvIndex: payload.daily.uv_index_max?.[dayIndex] ?? null,
   }
 }
@@ -141,7 +197,7 @@ export async function fetchLocationForecast(location, signal, onPartialForecast)
   })
 
   const [shortRangeResult, extendedRangeResult] = await Promise.allSettled([
-    fetchJson(
+    fetchJsonWithRetry(
       `https://api.open-meteo.com/v1/forecast?${shortRangeQuery}`,
       signal,
       `${location.name} short-range forecast`,
@@ -149,7 +205,7 @@ export async function fetchLocationForecast(location, signal, onPartialForecast)
       notifyPartialForecast(onPartialForecast, { shortRange })
       return shortRange
     }),
-    fetchJson(
+    fetchJsonWithRetry(
       `https://seasonal-api.open-meteo.com/v1/forecast?${extendedQuery}`,
       signal,
       `${location.name} extended forecast`,

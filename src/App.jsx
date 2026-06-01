@@ -17,6 +17,7 @@ import {
 } from './lib/weather.js'
 
 const AUTO_REFRESH_MS = 60 * 60 * 1000
+const FORECAST_REQUEST_CONCURRENCY = 4
 const RouteMap = lazy(() => import('./components/RouteMap.jsx'))
 const DEFAULT_EXPANDED_DATES = TRIP_DAYS.map((day) => day.date)
 const TOTAL_LOCATIONS = TRIP_LOCATIONS.length
@@ -148,6 +149,16 @@ function getInitialExpandedDates(initialViewMode) {
 
 function uniqueDates(dates) {
   return Array.from(new Set(dates))
+}
+
+async function mapWithConcurrency(items, limit, callback) {
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async (_, workerIndex) => {
+    for (let index = workerIndex; index < items.length; index += limit) {
+      await callback(items[index], index)
+    }
+  })
+
+  await Promise.all(workers)
 }
 
 function buildRouteDays(forecastsByLocation) {
@@ -647,8 +658,10 @@ function App() {
       let successfulCount = 0
       let latestSuccessAt = null
 
-      await Promise.all(
-        TRIP_LOCATIONS.map(async (location) => {
+      await mapWithConcurrency(
+        TRIP_LOCATIONS,
+        FORECAST_REQUEST_CONCURRENCY,
+        async (location) => {
           try {
             const forecast = await fetchLocationForecast(
               location,
@@ -690,7 +703,7 @@ function App() {
               })
             }
           }
-        }),
+        },
       )
 
       if (ignore) {
