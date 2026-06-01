@@ -5,6 +5,7 @@ const SHORT_RANGE_FIELDS = [
   'precipitation_probability_max',
   'precipitation_sum',
   'wind_speed_10m_max',
+  'uv_index_max',
 ]
 
 const HOURLY_FIELDS = [
@@ -122,6 +123,7 @@ function getPayloadForecast(payload, dateString, source) {
     precipitationProbability,
     precipitationTotal,
     windSpeed: payload.daily.wind_speed_10m_max[dayIndex],
+    uvIndex: payload.daily.uv_index_max?.[dayIndex] ?? null,
   }
 }
 
@@ -242,6 +244,7 @@ export function getHourlyHighlights(forecastBundle, dateString) {
   const checkpoints = [
     { hour: '09:00', label: '9 AM' },
     { hour: '12:00', label: '12 PM' },
+    { hour: '15:00', label: '3 PM' },
     { hour: '18:00', label: '6 PM' },
   ]
 

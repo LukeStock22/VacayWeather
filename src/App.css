@@ -273,6 +273,18 @@
   font-size: 1rem;
 }
 
+.jump-link.is-rainy {
+  background: #eef4ff;
+  color: #1a4d8a;
+  border-color: rgba(26, 77, 138, 0.16);
+}
+
+.jump-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
 .overview-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1067,7 +1079,7 @@
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 0.65rem;
 }
 
@@ -1108,7 +1120,7 @@
 
 .hourly-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
 }
 
@@ -1151,6 +1163,79 @@
 .pending-copy {
   margin-top: 0.45rem;
   line-height: 1.55;
+}
+
+.uv-card {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.uv-low {
+  background: rgba(72, 187, 90, 0.1);
+  border-color: rgba(72, 187, 90, 0.2);
+  color: #2e7d32;
+}
+
+.uv-moderate {
+  background: rgba(255, 193, 7, 0.12);
+  border-color: rgba(255, 193, 7, 0.25);
+  color: #7a5800;
+}
+
+.uv-high {
+  background: rgba(255, 152, 0, 0.12);
+  border-color: rgba(255, 152, 0, 0.25);
+  color: #8c4a00;
+}
+
+.uv-very-high {
+  background: rgba(244, 67, 54, 0.1);
+  border-color: rgba(244, 67, 54, 0.2);
+  color: #8b0000;
+}
+
+.uv-extreme {
+  background: rgba(156, 39, 176, 0.1);
+  border-color: rgba(156, 39, 176, 0.2);
+  color: #5c0080;
+}
+
+.uv-low p,
+.uv-moderate p,
+.uv-high p,
+.uv-very-high p,
+.uv-extreme p {
+  color: inherit;
+  opacity: 0.72;
+}
+
+.uv-low strong,
+.uv-moderate strong,
+.uv-high strong,
+.uv-very-high strong,
+.uv-extreme strong {
+  color: inherit;
+}
+
+.rain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  background: rgba(26, 77, 138, 0.1);
+  border: 1px solid rgba(26, 77, 138, 0.16);
+  color: #1a4d8a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.day-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 1040px) {
@@ -1215,10 +1300,16 @@
   }
 
   .hero-summary,
-  .metric-grid,
-  .hourly-strip,
   .route-spotlight-metrics {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hourly-strip {
     grid-template-columns: 1fr;
   }
 
@@ -1240,7 +1331,8 @@
   }
 
   .refresh-button,
-  .view-toggle {
+  .view-toggle,
+  .unit-toggle {
     width: 100%;
   }
 

@@ -67,12 +67,27 @@ function shiftIsoDate(dateString, amount) {
   return `${year}-${month}-${day}`
 }
 
-function formatTemperature(value) {
-  return `${Math.round(value)}F`
+function formatTemperature(value, unit = 'F') {
+  if (unit === 'C') {
+    return `${Math.round((value - 32) * 5 / 9)}°C`
+  }
+  return `${Math.round(value)}°F`
 }
 
-function formatWind(value) {
+function formatWind(value, unit = 'F') {
+  if (unit === 'C') {
+    return `${Math.round(value * 1.60934)} km/h`
+  }
   return `${Math.round(value)} mph`
+}
+
+function getUVCategory(uvIndex) {
+  if (uvIndex == null) return null
+  if (uvIndex < 3) return { label: 'Low', level: 'low' }
+  if (uvIndex < 6) return { label: 'Moderate', level: 'moderate' }
+  if (uvIndex < 8) return { label: 'High', level: 'high' }
+  if (uvIndex < 11) return { label: 'Very High', level: 'very-high' }
+  return { label: 'Extreme', level: 'extreme' }
 }
 
 function formatRain(value) {
@@ -182,6 +197,27 @@ function ViewToggle({ viewMode, onChange }) {
   )
 }
 
+function UnitToggle({ unit, onChange }) {
+  return (
+    <div className="view-toggle unit-toggle" role="group" aria-label="Temperature unit">
+      <button
+        type="button"
+        className={`view-button ${unit === 'F' ? 'is-active' : ''}`}
+        onClick={() => onChange('F')}
+      >
+        °F
+      </button>
+      <button
+        type="button"
+        className={`view-button ${unit === 'C' ? 'is-active' : ''}`}
+        onClick={() => onChange('C')}
+      >
+        °C
+      </button>
+    </div>
+  )
+}
+
 function JumpRail({ routeDays, activeDay, onSelectDay }) {
   return (
     <nav className="jump-rail-wrap" aria-label="Jump to day">
@@ -191,6 +227,10 @@ function JumpRail({ routeDays, activeDay, onSelectDay }) {
             key={day.date}
             className={`jump-link ${day.isExtended ? 'is-extended' : ''} ${
               activeDay === day.date ? 'is-active' : ''
+            } ${
+              day.forecast?.precipitationProbability != null && day.forecast.precipitationProbability >= 50
+                ? 'is-rainy'
+                : ''
             }`}
             href={`#${day.anchor}`}
             onClick={(event) => {
@@ -198,6 +238,9 @@ function JumpRail({ routeDays, activeDay, onSelectDay }) {
               onSelectDay(day.date)
             }}
           >
+            {day.forecast ? (
+              <WeatherIcon tone={day.forecast.tone} className="jump-icon" />
+            ) : null}
             <span>{formatCompactDate(day.date)}</span>
             {day.isExtended ? <strong>*</strong> : null}
           </a>
@@ -207,7 +250,7 @@ function JumpRail({ routeDays, activeDay, onSelectDay }) {
   )
 }
 
-function RouteOverview({ routeDays, activeDay, onSelectDay }) {
+function RouteOverview({ routeDays, activeDay, onSelectDay, formatTemp }) {
   const activeRouteDay =
     routeDays.find((day) => day.date === activeDay) ?? routeDays[0]
 
@@ -258,7 +301,7 @@ function RouteOverview({ routeDays, activeDay, onSelectDay }) {
                       tone={day.forecast.tone}
                       className="route-weather-icon"
                     />
-                    {formatTemperature(day.forecast.high)}
+                    {formatTemp(day.forecast.high)}
                   </span>
                 ) : (
                   <span className="route-weather pending">Pending</span>
@@ -295,7 +338,7 @@ function RouteOverview({ routeDays, activeDay, onSelectDay }) {
                 <span>Forecast</span>
                 <strong>
                   {activeRouteDay.forecast
-                    ? `${getWeatherLabel(activeRouteDay.forecast.weatherCode)} · ${formatTemperature(activeRouteDay.forecast.high)} / ${formatTemperature(activeRouteDay.forecast.low)}`
+                    ? `${getWeatherLabel(activeRouteDay.forecast.weatherCode)} · ${formatTemp(activeRouteDay.forecast.high)} / ${formatTemp(activeRouteDay.forecast.low)}`
                     : 'Pending'}
                 </strong>
               </div>
@@ -359,7 +402,7 @@ function RouteOverview({ routeDays, activeDay, onSelectDay }) {
   )
 }
 
-function DayGlance({ day }) {
+function DayGlance({ day, formatTemp }) {
   return (
     <div className="day-glance">
       <div className="day-glance-main">
@@ -395,7 +438,7 @@ function DayGlance({ day }) {
         <div className="day-glance-actions">
           <p className="day-glance-temp">
             {day.forecast
-              ? `${formatTemperature(day.forecast.high)} / ${formatTemperature(day.forecast.low)}`
+              ? `${formatTemp(day.forecast.high)} / ${formatTemp(day.forecast.low)}`
               : 'Waiting for feed'}
           </p>
         </div>
@@ -404,7 +447,7 @@ function DayGlance({ day }) {
   )
 }
 
-function StopCard({ stop, forecast, shortRangeThrough, extendedRangeThrough }) {
+function StopCard({ stop, forecast, shortRangeThrough, extendedRangeThrough, formatTemp, tempUnit }) {
   const dailyForecast = getDailyForecast(forecast, stop.date)
   const hourlyHighlights =
     dailyForecast?.source === 'short-range'
@@ -476,8 +519,8 @@ function StopCard({ stop, forecast, shortRangeThrough, extendedRangeThrough }) {
             </div>
 
             <div className="summary-temps">
-              <p className="summary-temp">{formatTemperature(dailyForecast.high)}</p>
-              <p className="summary-low">{formatTemperature(dailyForecast.low)}</p>
+              <p className="summary-temp">{formatTemp(dailyForecast.high)}</p>
+              <p className="summary-low">{formatTemp(dailyForecast.low)}</p>
             </div>
           </div>
 
@@ -492,8 +535,17 @@ function StopCard({ stop, forecast, shortRangeThrough, extendedRangeThrough }) {
             </article>
             <article className="metric-card">
               <p>Top wind</p>
-              <strong>{formatWind(dailyForecast.windSpeed)}</strong>
+              <strong>{formatWind(dailyForecast.windSpeed, tempUnit)}</strong>
             </article>
+            {dailyForecast.uvIndex != null ? (() => {
+              const uv = getUVCategory(dailyForecast.uvIndex)
+              return (
+                <article className={`metric-card uv-card uv-${uv.level}`}>
+                  <p>UV index</p>
+                  <strong>{Math.round(dailyForecast.uvIndex)} · {uv.label}</strong>
+                </article>
+              )
+            })() : null}
           </div>
 
           {hourlyHighlights.length > 0 ? (
@@ -514,7 +566,7 @@ function StopCard({ stop, forecast, shortRangeThrough, extendedRangeThrough }) {
                         <span>{getWeatherLabel(hour.weatherCode)}</span>
                       </div>
                     </div>
-                    <strong>{formatTemperature(hour.temperature)}</strong>
+                    <strong>{formatTemp(hour.temperature)}</strong>
                   </div>
                 ))}
               </div>
@@ -557,7 +609,12 @@ function App() {
   const [expandedDates, setExpandedDates] = useState(() =>
     getInitialExpandedDates(initialViewMode),
   )
+  const [tempUnit, setTempUnit] = useState(
+    () => localStorage.getItem('vacayweather-unit') || 'F',
+  )
   const hasLoadedOnceRef = useRef(false)
+
+  const formatTemp = (value) => formatTemperature(value, tempUnit)
 
   useEffect(() => {
     let ignore = false
@@ -708,6 +765,21 @@ function App() {
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
   }, [viewMode, expandedDates, activeDay])
 
+  function handleUnitChange(unit) {
+    setTempUnit(unit)
+    localStorage.setItem('vacayweather-unit', unit)
+  }
+
+  const forecastedDays = routeDays.filter((d) => d.forecast)
+  const sunnyDays = forecastedDays.filter((d) => d.forecast.tone === 'sun').length
+  const rainyDays = forecastedDays.filter((d) =>
+    ['rain', 'storm'].includes(d.forecast.tone),
+  ).length
+  const tripWeatherSummary =
+    forecastedDays.length === 0
+      ? 'Loading'
+      : `${sunnyDays} sunny · ${rainyDays} rainy`
+
   function scrollToDay(date) {
     const section = document.getElementById(getDayAnchor(date))
     if (section) {
@@ -759,6 +831,7 @@ function App() {
 
           <div className="hero-actions">
             <ViewToggle viewMode={viewMode} onChange={handleViewChange} />
+            <UnitToggle unit={tempUnit} onChange={handleUnitChange} />
             <button
               type="button"
               className="refresh-button"
@@ -780,8 +853,8 @@ function App() {
             value={shortRangeThrough ? formatDateOnly(shortRangeThrough) : 'Loading'}
           />
           <SummaryPill
-            label="Long-range days"
-            value={`${extendedDayCount} marked *`}
+            label="Weather split"
+            value={tripWeatherSummary}
           />
         </div>
 
@@ -812,6 +885,7 @@ function App() {
         routeDays={routeDays}
         activeDay={activeDay}
         onSelectDay={handleSelectDay}
+        formatTemp={formatTemp}
       />
 
       <section className={`timeline ${viewMode === 'condensed' ? 'is-condensed' : ''}`}>
@@ -839,9 +913,17 @@ function App() {
                   </h2>
                 </div>
                 <div className="day-header-side">
-                  <p className="day-count">
-                    {day.stops.length} location{day.stops.length === 1 ? '' : 's'}
-                  </p>
+                  <div className="day-header-meta">
+                    <p className="day-count">
+                      {day.stops.length} location{day.stops.length === 1 ? '' : 's'}
+                    </p>
+                    {day.forecast?.precipitationProbability != null &&
+                    day.forecast.precipitationProbability >= 50 ? (
+                      <span className="rain-badge">
+                        {day.forecast.precipitationProbability}% rain
+                      </span>
+                    ) : null}
+                  </div>
                   {viewMode === 'condensed' ? (
                     <button
                       type="button"
@@ -854,7 +936,7 @@ function App() {
                 </div>
             </div>
 
-              {viewMode === 'condensed' ? <DayGlance day={day} /> : null}
+              {viewMode === 'condensed' ? <DayGlance day={day} formatTemp={formatTemp} /> : null}
 
               {isExpanded ? (
                 <div className="stop-grid">
@@ -873,6 +955,8 @@ function App() {
                           ? formatDateOnly(extendedRangeThrough)
                           : 'the current extended forecast horizon'
                       }
+                      formatTemp={formatTemp}
+                      tempUnit={tempUnit}
                     />
                   ))}
                 </div>
