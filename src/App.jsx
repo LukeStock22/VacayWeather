@@ -21,6 +21,16 @@ const FORECAST_REQUEST_CONCURRENCY = 4
 const RouteMap = lazy(() => import('./components/RouteMap.jsx'))
 const DEFAULT_EXPANDED_DATES = TRIP_DAYS.map((day) => day.date)
 const TOTAL_LOCATIONS = TRIP_LOCATIONS.length
+const WEATHER_SPLIT_LABELS = {
+  sun: 'sunny',
+  cloud: 'cloudy',
+  fog: 'foggy',
+  rain: 'rainy',
+  snow: 'snowy',
+  storm: 'stormy',
+  mixed: 'mixed',
+}
+const WEATHER_SPLIT_ORDER = ['sun', 'cloud', 'fog', 'rain', 'snow', 'storm', 'mixed']
 
 function parseIsoDate(dateString) {
   const [year, month, day] = dateString.split('-').map(Number)
@@ -149,6 +159,23 @@ function getInitialExpandedDates(initialViewMode) {
 
 function uniqueDates(dates) {
   return Array.from(new Set(dates))
+}
+
+function formatWeatherSplit(forecastedDays) {
+  if (forecastedDays.length === 0) {
+    return 'Loading'
+  }
+
+  const counts = forecastedDays.reduce((weatherCounts, day) => {
+    const tone = day.forecast.tone
+    weatherCounts[tone] = (weatherCounts[tone] ?? 0) + 1
+    return weatherCounts
+  }, {})
+
+  return WEATHER_SPLIT_ORDER
+    .filter((tone) => counts[tone] > 0)
+    .map((tone) => `${counts[tone]} ${WEATHER_SPLIT_LABELS[tone] ?? WEATHER_SPLIT_LABELS.mixed}`)
+    .join(' · ')
 }
 
 function selectDayForecast(day, forecastsByLocation) {
@@ -847,14 +874,7 @@ function App() {
   }
 
   const forecastedDays = routeDays.filter((d) => d.forecast)
-  const sunnyDays = forecastedDays.filter((d) => d.forecast.tone === 'sun').length
-  const rainyDays = forecastedDays.filter((d) =>
-    ['rain', 'storm'].includes(d.forecast.tone),
-  ).length
-  const tripWeatherSummary =
-    forecastedDays.length === 0
-      ? 'Loading'
-      : `${sunnyDays} sunny · ${rainyDays} rainy`
+  const tripWeatherSummary = formatWeatherSplit(forecastedDays)
   const statusMessage =
     fetchState === 'loading'
       ? loadProgress.succeeded > 0
