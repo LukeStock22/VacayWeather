@@ -1,4 +1,4 @@
-export const TRIP_NAME = 'Mediterranean Vacation Forecast'
+export const TRIP_NAME = 'Traveling the Med'
 
 export const FORECAST_PROVIDER = {
   name: 'Open-Meteo',
