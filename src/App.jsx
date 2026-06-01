@@ -658,7 +658,10 @@ function App() {
       const failureCount = settled.length - successfulForecasts.length
 
       startTransition(() => {
-        setForecastsByLocation(nextForecasts)
+        setForecastsByLocation((current) => ({
+          ...current,
+          ...nextForecasts,
+        }))
         setFetchState('ready')
         setWarningMessage(
           failureCount > 0
@@ -705,6 +708,8 @@ function App() {
       .at(0) ?? null
 
   const routeDays = buildRouteDays(forecastsByLocation)
+  const hasForecastData = Object.keys(forecastsByLocation).length > 0
+  const isInitialLoading = fetchState === 'loading' && !hasForecastData
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -880,91 +885,105 @@ function App() {
         {warningMessage ? <p className="message warning">{warningMessage}</p> : null}
       </section>
 
-      <JumpRail routeDays={routeDays} activeDay={activeDay} onSelectDay={handleSelectDay} />
-      <RouteOverview
-        routeDays={routeDays}
-        activeDay={activeDay}
-        onSelectDay={handleSelectDay}
-        formatTemp={formatTemp}
-      />
+      {isInitialLoading ? (
+        <section className="loading-panel" aria-live="polite">
+          <p className="eyebrow">Forecast loading</p>
+          <h2>Pulling live weather for each stop...</h2>
+          <p>The route and daily cards will appear once the first forecast batch is ready.</p>
+        </section>
+      ) : null}
 
-      <section className={`timeline ${viewMode === 'condensed' ? 'is-condensed' : ''}`}>
-        {routeDays.map((day) => {
-          const isExpanded =
-            viewMode === 'expanded' || expandedDates.includes(day.date)
+      {hasForecastData ? (
+        <>
+          <JumpRail routeDays={routeDays} activeDay={activeDay} onSelectDay={handleSelectDay} />
+          <RouteOverview
+            routeDays={routeDays}
+            activeDay={activeDay}
+            onSelectDay={handleSelectDay}
+            formatTemp={formatTemp}
+          />
 
-          return (
-            <section
-              key={day.date}
-              id={day.anchor}
-              data-date={day.date}
-              className={`day-block ${day.isExtended ? 'is-extended-day' : ''} ${
-                !isExpanded ? 'is-collapsed' : ''
-              }`}
-            >
-              <div className="day-header">
-                <div>
-                  <p className="eyebrow">
-                  {day.stops.length === 1 ? 'Single stop' : 'Multi-stop day'}
-                </p>
-                  <h2>
-                    {formatDayLabel(day.date)}
-                  {day.isExtended ? <span className="day-asterisk">*</span> : null}
-                  </h2>
-                </div>
-                <div className="day-header-side">
-                  <div className="day-header-meta">
-                    <p className="day-count">
-                      {day.stops.length} location{day.stops.length === 1 ? '' : 's'}
-                    </p>
-                    {day.forecast?.precipitationProbability != null &&
-                    day.forecast.precipitationProbability >= 50 ? (
-                      <span className="rain-badge">
-                        {day.forecast.precipitationProbability}% rain
-                      </span>
-                    ) : null}
+          <section className={`timeline ${viewMode === 'condensed' ? 'is-condensed' : ''}`}>
+            {routeDays.map((day) => {
+              const isExpanded =
+                viewMode === 'expanded' || expandedDates.includes(day.date)
+
+              return (
+                <section
+                  key={day.date}
+                  id={day.anchor}
+                  data-date={day.date}
+                  className={`day-block ${day.isExtended ? 'is-extended-day' : ''} ${
+                    !isExpanded ? 'is-collapsed' : ''
+                  }`}
+                >
+                  <div className="day-header">
+                    <div>
+                      <p className="eyebrow">
+                        {day.stops.length === 1 ? 'Single stop' : 'Multi-stop day'}
+                      </p>
+                      <h2>
+                        {formatDayLabel(day.date)}
+                        {day.isExtended ? <span className="day-asterisk">*</span> : null}
+                      </h2>
+                    </div>
+                    <div className="day-header-side">
+                      <div className="day-header-meta">
+                        <p className="day-count">
+                          {day.stops.length} location{day.stops.length === 1 ? '' : 's'}
+                        </p>
+                        {day.forecast?.precipitationProbability != null &&
+                        day.forecast.precipitationProbability >= 50 ? (
+                          <span className="rain-badge">
+                            {day.forecast.precipitationProbability}% rain
+                          </span>
+                        ) : null}
+                      </div>
+                      {viewMode === 'condensed' ? (
+                        <button
+                          type="button"
+                          className="day-toggle"
+                          onClick={() => handleToggleDay(day.date)}
+                        >
+                          {isExpanded ? 'Hide details' : 'Show details'}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
+
                   {viewMode === 'condensed' ? (
-                    <button
-                      type="button"
-                      className="day-toggle"
-                      onClick={() => handleToggleDay(day.date)}
-                    >
-                      {isExpanded ? 'Hide details' : 'Show details'}
-                    </button>
+                    <DayGlance day={day} formatTemp={formatTemp} />
                   ) : null}
-                </div>
-            </div>
 
-              {viewMode === 'condensed' ? <DayGlance day={day} formatTemp={formatTemp} /> : null}
-
-              {isExpanded ? (
-                <div className="stop-grid">
-                  {day.stops.map((stop) => (
-                    <StopCard
-                      key={stop.id}
-                      stop={stop}
-                      forecast={forecastsByLocation[stop.locationId]}
-                      shortRangeThrough={
-                        shortRangeThrough
-                          ? formatDateOnly(shortRangeThrough)
-                          : 'the current live forecast horizon'
-                      }
-                      extendedRangeThrough={
-                        extendedRangeThrough
-                          ? formatDateOnly(extendedRangeThrough)
-                          : 'the current extended forecast horizon'
-                      }
-                      formatTemp={formatTemp}
-                      tempUnit={tempUnit}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </section>
-          )
-        })}
-      </section>
+                  {isExpanded ? (
+                    <div className="stop-grid">
+                      {day.stops.map((stop) => (
+                        <StopCard
+                          key={stop.id}
+                          stop={stop}
+                          forecast={forecastsByLocation[stop.locationId]}
+                          shortRangeThrough={
+                            shortRangeThrough
+                              ? formatDateOnly(shortRangeThrough)
+                              : 'the current live forecast horizon'
+                          }
+                          extendedRangeThrough={
+                            extendedRangeThrough
+                              ? formatDateOnly(extendedRangeThrough)
+                              : 'the current extended forecast horizon'
+                          }
+                          formatTemp={formatTemp}
+                          tempUnit={tempUnit}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              )
+            })}
+          </section>
+        </>
+      ) : null}
     </main>
   )
 }

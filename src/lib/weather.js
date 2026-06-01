@@ -87,13 +87,9 @@ async function fetchJson(url, signal, errorLabel) {
   return response.json()
 }
 
-function normalizePrecipitationProbability(probability, precipitationTotal) {
+function normalizePrecipitationProbability(probability) {
   if (Number.isFinite(probability)) {
     return Math.round(probability)
-  }
-
-  if (Number.isFinite(precipitationTotal) && precipitationTotal === 0) {
-    return 0
   }
 
   return null
@@ -112,7 +108,6 @@ function getPayloadForecast(payload, dateString, source) {
   const precipitationTotal = payload.daily.precipitation_sum?.[dayIndex] ?? 0
   const precipitationProbability = normalizePrecipitationProbability(
     payload.daily.precipitation_probability_max?.[dayIndex],
-    precipitationTotal,
   )
 
   return {

@@ -60,7 +60,8 @@
   margin: 0.35rem 0 0;
   color: #f7fbff;
   font-size: clamp(2.15rem, 4vw, 3.25rem);
-  line-height: 1;
+  line-height: 1.08;
+  padding-bottom: 0.08em;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -202,6 +203,26 @@
 .message.warning {
   background: rgba(255, 211, 122, 0.18);
   color: #fff2d1;
+}
+
+.loading-panel {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(18, 62, 88, 0.09);
+  background: rgba(248, 252, 255, 0.9);
+  box-shadow: 0 14px 40px rgba(12, 40, 58, 0.08);
+}
+
+.loading-panel h2 {
+  margin: 0.35rem 0 0;
+  color: var(--heading);
+  font-size: 1.2rem;
+}
+
+.loading-panel p:last-child {
+  margin: 0.45rem 0 0;
+  color: var(--body);
 }
 
 .jump-rail-wrap {
