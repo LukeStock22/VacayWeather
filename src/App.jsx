@@ -19,6 +19,7 @@ import {
 const AUTO_REFRESH_MS = 60 * 60 * 1000
 const RouteMap = lazy(() => import('./components/RouteMap.jsx'))
 const DEFAULT_EXPANDED_DATES = TRIP_DAYS.map((day) => day.date)
+const TOTAL_LOCATIONS = TRIP_LOCATIONS.length
 
 function parseIsoDate(dateString) {
   const [year, month, day] = dateString.split('-').map(Number)
@@ -601,7 +602,11 @@ function App() {
   const [forecastsByLocation, setForecastsByLocation] = useState({})
   const [fetchState, setFetchState] = useState('loading')
   const [errorMessage, setErrorMessage] = useState('')
-  const [warningMessage, setWarningMessage] = useState('')
+  const [loadProgress, setLoadProgress] = useState({
+    completed: 0,
+    failed: 0,
+    succeeded: 0,
+  })
   const [lastUpdated, setLastUpdated] = useState(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [viewMode, setViewMode] = useState(initialViewMode)
@@ -623,11 +628,51 @@ function App() {
     const loadForecasts = async () => {
       setFetchState(hasLoadedOnceRef.current ? 'refreshing' : 'loading')
       setErrorMessage('')
+      setLoadProgress({ completed: 0, failed: 0, succeeded: 0 })
 
-      const settled = await Promise.allSettled(
+      let completedCount = 0
+      let failedCount = 0
+      let successfulCount = 0
+      let latestSuccessAt = null
+
+      await Promise.all(
         TRIP_LOCATIONS.map(async (location) => {
-          const forecast = await fetchLocationForecast(location, controller.signal)
-          return [location.locationId, forecast]
+          try {
+            const forecast = await fetchLocationForecast(location, controller.signal)
+
+            if (ignore) {
+              return
+            }
+
+            successfulCount += 1
+            latestSuccessAt = new Date()
+            hasLoadedOnceRef.current = true
+
+            startTransition(() => {
+              setForecastsByLocation((current) => ({
+                ...current,
+                [location.locationId]: forecast,
+              }))
+            })
+          } catch (error) {
+            if (!ignore && error.name !== 'AbortError') {
+              failedCount += 1
+            }
+          } finally {
+            if (ignore) {
+              return
+            }
+
+            completedCount += 1
+
+            startTransition(() => {
+              setLoadProgress({
+                completed: completedCount,
+                failed: failedCount,
+                succeeded: successfulCount,
+              })
+            })
+          }
         }),
       )
 
@@ -635,16 +680,7 @@ function App() {
         return
       }
 
-      const successfulForecasts = settled.filter(
-        (result) => result.status === 'fulfilled',
-      )
-
-      if (successfulForecasts.length === 0) {
-        const firstFailure = settled.find((result) => result.status === 'rejected')
-        if (firstFailure?.reason?.name === 'AbortError') {
-          return
-        }
-
+      if (successfulCount === 0 && !hasLoadedOnceRef.current) {
         setFetchState('error')
         setErrorMessage(
           'Unable to load the forecast feed right now. Try refreshing again in a moment.',
@@ -652,25 +688,12 @@ function App() {
         return
       }
 
-      const nextForecasts = Object.fromEntries(
-        successfulForecasts.map((result) => result.value),
-      )
-      const failureCount = settled.length - successfulForecasts.length
-
       startTransition(() => {
-        setForecastsByLocation((current) => ({
-          ...current,
-          ...nextForecasts,
-        }))
         setFetchState('ready')
-        setWarningMessage(
-          failureCount > 0
-            ? `${failureCount} location forecast${failureCount === 1 ? '' : 's'} failed to refresh.`
-            : '',
-        )
-        setLastUpdated(new Date())
+        if (latestSuccessAt) {
+          setLastUpdated(latestSuccessAt)
+        }
       })
-      hasLoadedOnceRef.current = true
     }
 
     loadForecasts().catch((error) => {
@@ -710,6 +733,7 @@ function App() {
   const routeDays = buildRouteDays(forecastsByLocation)
   const hasForecastData = Object.keys(forecastsByLocation).length > 0
   const isInitialLoading = fetchState === 'loading' && !hasForecastData
+  const locationsStillLoading = TOTAL_LOCATIONS - loadProgress.completed
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -784,6 +808,24 @@ function App() {
     forecastedDays.length === 0
       ? 'Loading'
       : `${sunnyDays} sunny · ${rainyDays} rainy`
+  const statusMessage =
+    fetchState === 'loading'
+      ? loadProgress.succeeded > 0
+        ? `Loading forecasts... ${loadProgress.succeeded} of ${TOTAL_LOCATIONS} locations ready.`
+        : 'Loading forecasts...'
+      : fetchState === 'refreshing'
+        ? locationsStillLoading > 0
+          ? `Refreshing forecasts... showing current data while ${locationsStillLoading} location${locationsStillLoading === 1 ? '' : 's'} still load.`
+          : 'Refreshing forecasts...'
+        : fetchState === 'ready'
+          ? lastUpdated
+            ? `Updated ${formatDateTime(lastUpdated)}${
+                loadProgress.failed > 0
+                  ? ` · ${loadProgress.failed} location${loadProgress.failed === 1 ? '' : 's'} kept prior data.`
+                  : ''
+              }`
+            : 'Forecasts are ready.'
+          : 'Weather data is temporarily unavailable.'
 
   function scrollToDay(date) {
     const section = document.getElementById(getDayAnchor(date))
@@ -865,15 +907,7 @@ function App() {
 
         <div className="status-bar">
           <div>
-            <p className="status-copy">
-              {fetchState === 'loading' && 'Loading forecasts...'}
-              {fetchState === 'refreshing' && 'Refreshing the latest forecast window...'}
-              {fetchState === 'ready' &&
-                (lastUpdated
-                  ? `Updated ${formatDateTime(lastUpdated)}`
-                  : 'Forecasts are ready.')}
-              {fetchState === 'error' && 'Weather data is temporarily unavailable.'}
-            </p>
+            <p className="status-copy">{statusMessage}</p>
             <p className="status-note">
               `*` marks dates that are still outside the live {FORECAST_PROVIDER.shortRangeDays}
               -day window.
@@ -882,7 +916,6 @@ function App() {
         </div>
 
         {errorMessage ? <p className="message error">{errorMessage}</p> : null}
-        {warningMessage ? <p className="message warning">{warningMessage}</p> : null}
       </section>
 
       {isInitialLoading ? (
