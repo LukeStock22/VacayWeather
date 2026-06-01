@@ -648,7 +648,6 @@ function App() {
       .at(0) ?? null
 
   const routeDays = buildRouteDays(forecastsByLocation)
-  const extendedDayCount = routeDays.filter((day) => day.isExtended).length
 
   useEffect(() => {
     const observer = new IntersectionObserver(
