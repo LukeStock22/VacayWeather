@@ -151,6 +151,18 @@ function uniqueDates(dates) {
   return Array.from(new Set(dates))
 }
 
+function selectDayForecast(day, forecastsByLocation) {
+  const forecasts = day.stops
+    .map((stop) => getDailyForecast(forecastsByLocation[stop.locationId], day.date))
+    .filter(Boolean)
+
+  return (
+    forecasts.find((forecast) => forecast.source === 'short-range') ??
+    forecasts[0] ??
+    null
+  )
+}
+
 async function mapWithConcurrency(items, limit, callback) {
   const workers = Array.from({ length: Math.min(limit, items.length) }, async (_, workerIndex) => {
     for (let index = workerIndex; index < items.length; index += limit) {
@@ -164,10 +176,7 @@ async function mapWithConcurrency(items, limit, callback) {
 function buildRouteDays(forecastsByLocation) {
   return TRIP_DAYS.map((day) => {
     const primaryStop = day.stops[0]
-    const forecast = getDailyForecast(
-      forecastsByLocation[primaryStop.locationId],
-      day.date,
-    )
+    const forecast = selectDayForecast(day, forecastsByLocation)
 
     return {
       ...day,
@@ -637,12 +646,20 @@ function App() {
     const controller = new AbortController()
 
     function mergeLocationForecast(locationId, partialForecast) {
+      const nextForecast = Object.fromEntries(
+        Object.entries(partialForecast).filter(([, value]) => value != null),
+      )
+
+      if (Object.keys(nextForecast).length === 0) {
+        return
+      }
+
       startTransition(() => {
         setForecastsByLocation((current) => ({
           ...current,
           [locationId]: {
             ...current[locationId],
-            ...partialForecast,
+            ...nextForecast,
           },
         }))
       })
